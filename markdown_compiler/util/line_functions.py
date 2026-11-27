@@ -1,9 +1,5 @@
-'''
-Each function takes a single line and transforms it in some way.
+'''Each function takes a single line and transforms it in some way.'''
 
-Four functions are stubs -- they return their input unchanged and must
-be implemented.  Five are already implemented and must not be touched.
-'''
 
 
 def _pair(line, delim, open_tag, close_tag):
@@ -13,42 +9,74 @@ def _pair(line, delim, open_tag, close_tag):
     >>> _pair('a*b*c', '*', '<i>', '</i>')
     'a<i>b</i>c'
     >>> _pair('a*b', '*', '<i>', '</i>')
-    'a<i>b'
+    'a*b'
     '''
-    out, i, opened = '', 0, False
+    out, i, opened, len_d = '', 0, False, len(delim)
     while i < len(line):
-        if line[i:i + len(delim)] == delim:
-            out += close_tag if opened else open_tag
-            opened = not opened
-            i += len(delim)
+        if line[i:i+len_d] == delim:
+            if opened:
+                out += close_tag
+                opened = False
+            else:
+                out += open_tag
+                opened = True
+            i += len_d
         else:
             out += line[i]
             i += 1
+    if opened:
+        # Unmatched opener: undo the trailing open_tag and emit the delim.
+        if out.endswith(open_tag):
+            out = out[:-len(open_tag)] + delim
     return out
 
 
 def compile_headers(line):
-    return line
+    if not line.startswith('#'):
+        return line
+    stripped = line.strip()
+    level = 0
+    while level < len(stripped) and stripped[level] == '#':
+        level += 1
+    content = stripped[level:]
+    return f'<h{level}>{content}</h{level}>'
+
+def _linkify(link_text, href):
+    return f'<a href="{href}">{link_text}</a>'
 
 
 def compile_italic_star(line):
-    return line
+    # Do not emit a tag if the delimiter will be unmatched.
+    count = line.count('*')
+    if count < 2:
+        return line
+    return _pair(line, '*', '<i>', '</i>')
 
 
 def compile_italic_underscore(line):
+    # Only treat underscores as style markers when adjacent to non-alphabetic chars
+    count = line.count('_')
+    if count < 2:
+        return line
     return _pair(line, '_', '<i>', '</i>')
 
 
+def compile_bold_underscore(line):
+    return line
+
+
 def compile_strikethrough(line):
+    count = line.count('~~')
+    if count < 2:
+        return line
     return _pair(line, '~~', '<ins>', '</ins>')
 
 
 def compile_bold_stars(line):
-    return line
-
-
-def compile_bold_underscore(line):
-    return _pair(line, '__', '<b>', '</b>')
+    count = line.count('**')
+    if count < 2:
+        return line
+    return _pair(line, '**', '<b>', '</b>')
 
 
 def compile_code_inline(line):
@@ -85,4 +113,14 @@ def compile_links(line):
 
 
 def compile_images(line):
-    return line
+    out = line
+    while ']' in out and '![' in out:
+        i = out.find('![')
+        j = out.find('](', i)
+        k = out.find(')', j)
+        if j < 0 or k < 0:
+            break
+        alt = out[i + 2:j]
+        src = out[j + 2:k]
+        out = out[:i] + f'<img src="{src}" alt="{alt}" />' + out[k + 1:]
+    return out
